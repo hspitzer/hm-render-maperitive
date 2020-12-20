@@ -71,7 +71,7 @@ Options:
 | Tag | Description
 | --- | -----------
 | maperitive | Full path and filename of the Maperitive startup script or executable. hm-render-maperitive will pass options so if you use a shell script, make sure all parameters are passed.
-| datasources | Contains all map datasources to be rendered by Maperitive. Keep in mind that more and larger files require more memory, Maperitive may not be able to handle this.
+| datasources | Optional. Contains all map datasources to be rendered by Maperitive. Keep in mind that more and larger files require more memory, Maperitive may not be able to handle this.
 | outputformat | Output format. Output format. Consult the documentation of the export-bitmap function in Maperitive for possible values.
 | dpi | Amount of detail to render in dots per inch. This value is unrelated to the setting on your printer, a higher value will simply result in smaller icons, thinner roads and unreadable text.
 

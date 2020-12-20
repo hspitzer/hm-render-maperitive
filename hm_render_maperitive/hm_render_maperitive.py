@@ -67,11 +67,12 @@ def parse_configfile():
                 config['maperitive'] = maperitive
             
             xmldatasources = xmlmaperitive.getElementsByTagName('datasources')
-            xmldatasourcelist = xmldatasources[0].getElementsByTagName('datasource')
-            for xmldatasource in xmldatasourcelist:
-                if xmldatasource and xmldatasource.childNodes:
-                    datasource = str(xmldatasource.firstChild.nodeValue)
-                    config['datasources'].append(os.path.abspath(datasource))
+            if xmldatasources:
+                xmldatasourcelist = xmldatasources[0].getElementsByTagName('datasource')
+                for xmldatasource in xmldatasourcelist:
+                    if xmldatasource and xmldatasource.childNodes:
+                        datasource = str(xmldatasource.firstChild.nodeValue)
+                        config['datasources'].append(os.path.abspath(datasource))
             
             output_format = get_xml_subtag_value(xmlmaperitive, 'outputformat')
             if output_format:
