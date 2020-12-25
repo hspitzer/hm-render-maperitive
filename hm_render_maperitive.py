@@ -16,78 +16,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os, argparse, math, subprocess
-from xml.dom import minidom
+import os, argparse, math
 
 # global constants
 earthCircumference = 40041.44 # km (average, equatorial 40075.017 km / meridional 40007.86 km)
 cmToKmFactor = 100000.0
 inch = 2.54 # cm
 
-def search_configfile():
-    filename = 'hm-render-maperitive.config.xml'
-    if os.path.exists(filename):
-        return os.path.abspath(filename)
-    elif os.path.exists(os.path.join(os.path.expanduser('~'), '.' + filename)):
-        return os.path.join(os.path.expanduser('~'), '.' + filename)
-    else:
-        return None
-
-
-def get_xml_subtag_value(xmlnode, sublabelname):
-    elements = xmlnode.getElementsByTagName(sublabelname)
-    return str(elements[0].firstChild.nodeValue) if elements and elements[0].childNodes else None
-
-
-def parse_configfile():
-    config = {}
-    config['maperitive'] = 'Maperitive.exe'
-    config['datasources'] = [ ]
-    config['output_format'] = 'png'
-    config['dpi'] = 300
-    
-    configfile = search_configfile()
-    
-    if configfile:
-        xmldoc = None
-        
-        try:
-            xmldoc = minidom.parse(configfile)
-        except:
-            pass
-        
-        if xmldoc:
-            xmlmaperitive_element = xmldoc.getElementsByTagName('hm-render-maperitive')
-            if xmlmaperitive_element:
-                xmlmaperitive = xmlmaperitive_element[0]
-        
-        if xmlmaperitive:
-            maperitive = get_xml_subtag_value(xmlmaperitive, 'maperitive')
-            if maperitive:
-                config['maperitive'] = maperitive
-            
-            xmldatasources = xmlmaperitive.getElementsByTagName('datasources')
-            if xmldatasources:
-                xmldatasourcelist = xmldatasources[0].getElementsByTagName('datasource')
-                for xmldatasource in xmldatasourcelist:
-                    if xmldatasource and xmldatasource.childNodes:
-                        datasource = str(xmldatasource.firstChild.nodeValue)
-                        config['datasources'].append(os.path.abspath(datasource))
-            
-            output_format = get_xml_subtag_value(xmlmaperitive, 'outputformat')
-            if output_format:
-                config['output_format'] = output_format
-            
-            dpi = get_xml_subtag_value(xmlmaperitive, 'dpi')
-            if dpi:
-                config['dpi'] = int(dpi)
-    
-    return config
-
 
 def parse_commandline():
-    config = parse_configfile()
-
     parser = argparse.ArgumentParser(description = "Render a map on paper using Maperitive")
     parser.add_argument('--pagewidth', dest = 'pagewidth', type = float, default = 20.0, \
                         help = "page width in cm")
@@ -101,11 +38,9 @@ def parse_commandline():
                         help = "temp waypoints file to render")
     parser.add_argument('-v', dest = 'verbose', action = 'store_true')
     # hm-render-maperitive specific parameters
-    parser.add_argument('-m', '--maperitive', dest = 'maperitive', default = config['maperitive'], \
-                        help = "full path to the Maperitive executable (default: %(default)s)")
-    parser.add_argument('-d', '--dpi', type=int, default=config['dpi'], \
+    parser.add_argument('-d', '--dpi', type=int, default=300, \
                         help = "amount of detail to render in dots per inch (default: %(default)s)")
-    parser.add_argument('-f', '--format', dest='output_format', default=config['output_format'], \
+    parser.add_argument('-f', '--format', dest='output_format', default='png', \
                         help = "an output format supported by the export-bitmap function in " + \
                                "Maperitive (default: %(default)s)")
     # --
@@ -134,9 +69,7 @@ def parse_commandline():
     parser_atlas.add_argument('--scale', type=int, default=50000, \
                               help='scale denominator')
 
-    parameters = parser.parse_args()
-    parameters.datasources = config['datasources']
-    return parameters
+    return parser.parse_args()
 
 
 def convert_cm_to_degrees_lon(lengthcm, scale, latitude):
@@ -163,15 +96,12 @@ def assure_bbox_mode(parameters):
     
 def render(parameters):
     with open(parameters.basefilename + '.mscript', 'w') as f:
-        # load datasources: osm file, gpx files and temp gpx files
-        for datasource in parameters.datasources:
-            f.write('load-source "%s"\n' % datasource)
-
-        # parameters.gpxfiles, parameters.temptrackfile and parameters.tempwaypointfile are passed
-        # from hikingmap, full path is given
+        # load (temp) gpx files as datasources
         for gpxfile in parameters.gpxfiles:
             f.write('load-source "%s"\n' % gpxfile)
 
+        # TODO: copy temporary gpx files to local directory since we need them later on
+        #       might be the solution to start a new script!
         if parameters.temptrackfile:
             f.write('load-source "%s"\n' % parameters.temptrackfile)
         if parameters.tempwaypointfile:
@@ -192,24 +122,6 @@ def render(parameters):
         #imgheight = math.trunc(parameters.pageheight / inch * parameters.dpi)
         f.write('export-bitmap file="%s" width=%d\n' % \
                 (os.path.abspath(parameters.basefilename + '.' + parameters.output_format), imgwidth))
-        
-        # quit Maperitive after rendering
-        f.write('exit')
-
-    # execute Maperitive
-    args = [ parameters.maperitive,
-             os.path.abspath(parameters.basefilename + '.mscript') ]
-
-    try:
-        process = subprocess.run(args, \
-                                 cwd = os.path.dirname(parameters.maperitive),
-                                 stdout = subprocess.PIPE, \
-                                 check = True, \
-                                 universal_newlines = True)
-        process.check_returncode()
-        print(process.stdout, end = '')
-    except subprocess.CalledProcessError as e:
-        print("Running Maperitive failed: %s" % e)
 
 
 def main():
