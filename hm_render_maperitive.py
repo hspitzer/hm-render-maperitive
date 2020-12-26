@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os, argparse, math
+import os, argparse, math, shutil
 
 # global constants
 earthCircumference = 40041.44 # km (average, equatorial 40075.017 km / meridional 40007.86 km)
@@ -95,17 +95,37 @@ def assure_bbox_mode(parameters):
 
     
 def render(parameters):
-    with open(parameters.basefilename + '.mscript', 'w') as f:
-        # load (temp) gpx files as datasources
-        for gpxfile in parameters.gpxfiles:
-            f.write('load-source "%s"\n' % gpxfile)
+    script_base_name = os.path.abspath(parameters.basefilename)
+    script_create_mode = 'w'
+    
+    track_dest_filename = None
+    if parameters.temptrackfile:
+        track_dest_filename = os.path.abspath(os.path.basename(parameters.temptrackfile))
+        if not os.path.isfile(track_dest_filename):
+            shutil.copyfile(parameters.temptrackfile, track_dest_filename)
+        else:
+            script_create_mode = 'a'
+        script_base_name = os.path.abspath(os.path.splitext(track_dest_filename)[0])
 
-        # TODO: copy temporary gpx files to local directory since we need them later on
-        #       might be the solution to start a new script!
-        if parameters.temptrackfile:
-            f.write('load-source "%s"\n' % parameters.temptrackfile)
-        if parameters.tempwaypointfile:
-            f.write('load-source "%s"\n' % parameters.tempwaypointfile)
+    waypt_dest_filename = None
+    if parameters.tempwaypointfile:
+        waypt_dest_filename = os.path.abspath(os.path.basename(parameters.tempwaypointfile))
+        if not os.path.isfile(waypt_dest_filename):
+            shutil.copyfile(parameters.tempwaypointfile, waypt_dest_filename)
+        else:
+            script_create_mode = 'a'
+        script_base_name = os.path.abspath(os.path.splitext(waypt_dest_filename)[0])
+
+    with open(script_base_name + '.mscript', script_create_mode) as f:
+        if script_create_mode == 'w':
+            # load (temp) gpx files as datasources
+            for gpxfile in parameters.gpxfiles:
+                f.write('load-source "%s"\n' % gpxfile)
+
+            if track_dest_filename:
+                f.write('load-source "%s"\n' % track_dest_filename)
+            if waypt_dest_filename:
+                f.write('load-source "%s"\n' % waypt_dest_filename)
         
         # set the page boundaries
         f.write('set-print-bounds-geo %.8f, %.8f, %.8f, %.8f\n' % \
