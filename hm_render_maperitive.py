@@ -95,53 +95,60 @@ def assure_bbox_mode(parameters):
 
     
 def render(parameters):
-    script_base_name = os.path.abspath(parameters.basefilename)
-    script_create_mode = 'w'
+    script_name = os.path.abspath('hm-render-maperitive-%d.maperi.py' % os.getppid())
+    is_new_script = not os.path.isfile(script_name)
     
     track_dest_filename = None
     if parameters.temptrackfile:
         track_dest_filename = os.path.abspath(os.path.basename(parameters.temptrackfile))
         if not os.path.isfile(track_dest_filename):
             shutil.copyfile(parameters.temptrackfile, track_dest_filename)
-        else:
-            script_create_mode = 'a'
-        script_base_name = os.path.abspath(os.path.splitext(track_dest_filename)[0])
 
     waypt_dest_filename = None
     if parameters.tempwaypointfile:
         waypt_dest_filename = os.path.abspath(os.path.basename(parameters.tempwaypointfile))
         if not os.path.isfile(waypt_dest_filename):
             shutil.copyfile(parameters.tempwaypointfile, waypt_dest_filename)
-        else:
-            script_create_mode = 'a'
-        script_base_name = os.path.abspath(os.path.splitext(waypt_dest_filename)[0])
 
-    with open(script_base_name + '.mscript', script_create_mode) as f:
-        if script_create_mode == 'w':
+    with open(script_name, 'a') as f:
+        if is_new_script:
+            f.write('# -*- coding: utf-8 -*-\n\nfrom maperipy import *\n\n')
+            
             # load (temp) gpx files as datasources
             for gpxfile in parameters.gpxfiles:
-                f.write('load-source "%s"\n' % gpxfile)
+                f.write('App.run_command(\'load-source "%s"\')\n' % gpxfile)
+            f.write('\n')
 
-            if track_dest_filename:
-                f.write('load-source "%s"\n' % track_dest_filename)
-            if waypt_dest_filename:
-                f.write('load-source "%s"\n' % waypt_dest_filename)
+        output_filename = parameters.basefilename + '.' + parameters.output_format
+        f.write('# generating file %s\n' % output_filename)
+        
+        if track_dest_filename:
+            f.write('App.run_command(\'load-source "%s"\')\n' % track_dest_filename)
+        if waypt_dest_filename:
+            f.write('App.run_command(\'load-source "%s"\')\n' % waypt_dest_filename)
         
         # set the page boundaries
-        f.write('set-print-bounds-geo %.8f, %.8f, %.8f, %.8f\n' % \
+        f.write('App.run_command(\'set-print-bounds-geo %.8f, %.8f, %.8f, %.8f\')\n' % \
                 (parameters.minlon, parameters.minlat, parameters.maxlon, parameters.maxlat))
         
         # set paper size - orientation follows from width and height
         width = int(parameters.pagewidth * 10)
         height = int(parameters.pageheight * 10)
-        f.write('set-paper width=%d height=%d orientation=portrait\n' % (width, height))
+        f.write('App.run_command(\'set-paper width=%d height=%d orientation=portrait\')\n' % \
+                (width, height))
         
         # export the map as bitmap
         imgwidth = math.trunc(parameters.pagewidth / inch * parameters.dpi)
         # Maperitive does not allow setting height if print boundaries are already set
         #imgheight = math.trunc(parameters.pageheight / inch * parameters.dpi)
-        f.write('export-bitmap file="%s" width=%d\n' % \
-                (os.path.abspath(parameters.basefilename + '.' + parameters.output_format), imgwidth))
+        f.write('App.run_command(\'export-bitmap file="%s" width=%d\')\n' % \
+                (os.path.abspath(output_filename), imgwidth))
+        
+        # remove gpx datasources to prepare for the next page
+        if waypt_dest_filename:
+            f.write('App.run_command(\'remove-source %d\' % len(Map.layers))\n')
+        if track_dest_filename:
+            f.write('App.run_command(\'remove-source %d\' % len(Map.layers))\n')
 
 
 def main():
