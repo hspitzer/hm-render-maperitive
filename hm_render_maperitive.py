@@ -40,9 +40,13 @@ def parse_commandline():
     # hm-render-maperitive specific parameters
     parser.add_argument('-d', '--dpi', type=int, default=300, \
                         help = "amount of detail to render in dots per inch (default: %(default)s)")
+    parser.add_argument('-p', '--ppi', type=int, default=200, \
+                        help = "resolution of scree to determine correct scale when exporting as svg (default: %(default)s)")
     parser.add_argument('-f', '--format', dest='output_format', default='png', \
                         help = "an output format supported by the export-bitmap function in " + \
                                "Maperitive (default: %(default)s)")
+    parser.add_argument('--download-data', action='store_true', dest='download_data', help='download data using osm overpass api')
+    parser.add_argument('-c', '--contours', action='store_true', help='generate contours')
     # --
     parser.add_argument('gpxfiles', nargs = '*')
     
@@ -137,17 +141,39 @@ def render(parameters):
         f.write('App.run_command(\'set-paper width=%d height=%d orientation=portrait\')\n' % \
                 (width, height))
         
-        # export the map as bitmap
-        imgwidth = math.trunc(parameters.pagewidth / inch * parameters.dpi)
-        # Maperitive does not allow setting height if print boundaries are already set
-        #imgheight = math.trunc(parameters.pageheight / inch * parameters.dpi)
-        f.write('App.run_command(\'export-bitmap file="%s" width=%d\')\n' % \
+        if parameters.download_data:
+            # download the data
+            f.write('App.run_command(\'download-osm-overpass bounds=%.8f,%.8f,%.8f,%.8f\')\n' % \
+                    (parameters.minlon, parameters.minlat, parameters.maxlon, parameters.maxlat))
+        if parameters.contours:
+            f.write('App.run_command(\'generate-contours bounds=%.8f,%.8f,%.8f,%.8f\')\n' % \
+                    (parameters.minlon, parameters.minlat, parameters.maxlon, parameters.maxlat))
+        
+        # set correct scale
+        f.write('App.run_command(\'set-setting name=display.ppi value=%d\')\n' % \
+                parameters.ppi)
+        f.write('App.run_command(\'zoom-map-scale 50000\')\n')
+        
+        if parameters.output_format == 'svg':
+            # export the map as svg
+            f.write('App.run_command(\'export-svg file="%s"\')\n' % \
+                    os.path.abspath(output_filename))
+        else:
+            # export the map as bitmap
+            imgwidth = math.trunc(parameters.pagewidth / inch * parameters.dpi)
+            # Maperitive does not allow setting height if print boundaries are already set
+            #imgheight = math.trunc(parameters.pageheight / inch * parameters.dpi)
+            f.write('App.run_command(\'export-bitmap file="%s" width=%d scale=2\')\n' % \
                 (os.path.abspath(output_filename), imgwidth))
         
         # remove gpx datasources to prepare for the next page
         if waypt_dest_filename:
             f.write('App.run_command(\'remove-source %d\' % len(Map.layers))\n')
         if track_dest_filename:
+            f.write('App.run_command(\'remove-source %d\' % len(Map.layers))\n')
+        if parameters.download_data:
+            f.write('App.run_command(\'remove-source %d\' % len(Map.layers))\n')
+        if parameters.contours:
             f.write('App.run_command(\'remove-source %d\' % len(Map.layers))\n')
 
 
